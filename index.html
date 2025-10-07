@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Emoji Hub — Site de Emojis</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#ffd166;--muted:#94a3b8}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#081024 0%, #071829 100%);color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .app{width:100%;max-width:920px}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#ff7b7b);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+    h1{font-size:20px;margin:0}
+    p.lead{margin:2px 0 0;color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+    input[type="search"]{flex:1;min-width:180px;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:inherit}
+    select,button{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:inherit}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:10px}
+    .emoji{background:rgba(255,255,255,.02);border-radius:8px;padding:14px;display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;user-select:none;transition:transform .12s ease,box-shadow .12s ease}
+    .emoji:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(2,6,23,.6)}
+    .toast{position:fixed;right:20px;bottom:20px;background:#061225;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.04);color:var(--accent);box-shadow:0 6px 20px rgba(0,0,0,.5);opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}
+    .toast.show{opacity:1;transform:translateY(0)}
+    footer{margin-top:14px;color:var(--muted);font-size:13px;text-align:center}
+    @media (max-width:420px){.logo{width:44px;height:44px;font-size:22px}.emoji{font-size:22px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="logo">😊</div>
+      <div>
+        <h1>Emoji Hub</h1>
+        <p class="lead">Clique em um emoji para copiar — busque por categoria ou texto.</p>
+      </div>
+    </header>
+
+    <div class="controls">
+      <input id="search" type="search" placeholder="Buscar emojis (ex: sorriso, animal, comida)..." aria-label="Buscar emojis">
+      <select id="filter" aria-label="Filtrar categoria">
+        <option value="all">Todas as categorias</option>
+        <option value="smileys">Sorrisos & pessoas</option>
+        <option value="animals">Animais & natureza</option>
+        <option value="food">Comida & bebida</option>
+        <option value="activities">Atividades & esportes</option>
+        <option value="objects">Objetos</option>
+        <option value="symbols">Símbolos</option>
+        <option value="flags">Bandeiras</option>
+      </select>
+      <button id="shuffle">Embaralhar</button>
+    </div>
+
+    <section class="grid" id="grid" aria-live="polite"></section>
+
+    <footer>Feito com ❤️ — clique para copiar. Pressione Ctrl+V para colar.</footer>
+
+    <div id="toast" class="toast" role="status" aria-live="polite">Copiado!</div>
+  </main>
+
+  <script>
+    const EMOJI_LIST = [
+      {char:'😀',name:'rosto sorridente',cat:'smileys'},
+      {char:'😂',name:'rindo',cat:'smileys'},
+      {char:'😍',name:'apaixonado',cat:'smileys'},
+      {char:'😎',name:'cool',cat:'smileys'},
+      {char:'🤔',name:'pensativo',cat:'smileys'},
+      {char:'🙃',name:'de cabeça para baixo',cat:'smileys'},
+
+      {char:'🐶',name:'cachorro',cat:'animals'},
+      {char:'🐱',name:'gato',cat:'animals'},
+      {char:'🦊',name:'raposa',cat:'animals'},
+      {char:'🦁',name:'leão',cat:'animals'},
+      {char:'🐼',name:'panda',cat:'animals'},
+
+      {char:'🍕',name:'pizza',cat:'food'},
+      {char:'🍔',name:'hambúrguer',cat:'food'},
+      {char:'🍣',name:'sushi',cat:'food'},
+      {char:'🍩',name:'donut',cat:'food'},
+      {char:'☕',name:'café',cat:'food'},
+
+      {char:'⚽',name:'bola',cat:'activities'},
+      {char:'🏀',name:'basquete',cat:'activities'},
+      {char:'🎸',name:'guitarra',cat:'activities'},
+
+      {char:'📱',name:'celular',cat:'objects'},
+      {char:'💡',name:'ideia',cat:'objects'},
+      {char:'🔒',name:'cadeado',cat:'objects'},
+
+      {char:'❤️',name:'coração',cat:'symbols'},
+      {char:'⭐',name:'estrela',cat:'symbols'},
+      {char:'⚠️',name:'aviso',cat:'symbols'},
+
+      {char:'🇧🇷',name:'Brasil',cat:'flags'},
+      {char:'🇺🇸',name:'Estados Unidos',cat:'flags'},
+      {char:'🇯🇵',name:'Japão',cat:'flags'}
+    ];
+
+    const grid = document.getElementById('grid');
+    const search = document.getElementById('search');
+    const filter = document.getElementById('filter');
+    const toast = document.getElementById('toast');
+    const shuffleBtn = document.getElementById('shuffle');
+
+    function renderList(list){
+      grid.innerHTML = '';
+      if(!list.length){grid.innerHTML = '<p style="grid-column:1/-1;color:var(--muted);text-align:center">Nenhum emoji encontrado.</p>';return}
+      list.forEach(e=>{
+        const btn = document.createElement('button');
+        btn.className='emoji';
+        btn.type='button';
+        btn.title = e.name;
+        btn.textContent = e.char;
+        btn.addEventListener('click', ()=>copyEmoji(e.char, e.name));
+        grid.appendChild(btn);
+      })
+    }
+
+    function copyEmoji(char, name){
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(char).then(()=>showToast(`${char} — ${name} copiado!`)).catch(()=>fallbackCopy(char));
+      } else fallbackCopy(char);
+    }
+
+    function fallbackCopy(text){
+      const ta = document.createElement('textarea');ta.value = text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('Copiado!')}catch{showToast('Não foi possível copiar')}
+      ta.remove();
+    }
+
+    let toastTimer = null;
+    function showToast(msg){
+      toast.textContent = msg;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),1600);
+    }
+
+    function applyFilters(){
+      const q = search.value.trim().toLowerCase();
+      const f = filter.value;
+      let result = EMOJI_LIST.filter(e=> (f==='all' || e.cat===f) && (q === '' || e.name.includes(q) || e.char.includes(q)) );
+      renderList(result);
+    }
+
+    search.addEventListener('input', applyFilters);
+    filter.addEventListener('change', applyFilters);
+    shuffleBtn.addEventListener('click', ()=>{EMOJI_LIST.sort(()=>Math.random()-0.5);applyFilters();showToast('Embaralhado!')});
+
+    // initial render
+    renderList(EMOJI_LIST);
+  </script>
+</body>
+</html>
